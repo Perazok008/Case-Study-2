@@ -5,7 +5,7 @@ set -euo pipefail
 
 echo "Setting up SSH."
 
-USER="group6"
+USER="group06"
 PORT="22000"
 SERVER="paffenroth-23.dyn.wpi.edu"
 KEY_PATH="./ssh_keys/group_key"
