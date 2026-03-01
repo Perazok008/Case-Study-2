@@ -25,6 +25,7 @@ class ChatRequest(BaseModel):
     personality: str
     settings: ChatSettings
     session_id: str
+    use_local: bool = False
 
 class MemoryItem(BaseModel):
     label: str

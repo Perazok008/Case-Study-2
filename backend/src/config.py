@@ -225,3 +225,4 @@ PERSONALITIES = {
 PERSONALITY_CHOICES = list(PERSONALITIES.keys())
 
 API_MODEL = "openai/gpt-oss-20b"
+LOCAL_MODEL = "microsoft/Phi-3-mini-4k-instruct"

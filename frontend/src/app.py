@@ -1,29 +1,58 @@
 import gradio as gr
-from config import PERSONALITIES
-from response_manager import respond, get_personality_memory
+import uuid
 from components.SettingsSidebar import SettingsSidebar
+import api
 
-DEFAULT_PERSONALITY = "Teacher"
+PERSONALITIES = api.get_personalities()
+DEFAULT_PERSONALITY = PERSONALITIES[0]
 
 
 def personality_html(name):
     """Return banner HTML + a <style> tag that sets the accent CSS variable."""
-    s = PERSONALITIES[name]["style"]
+    s = api.get_personality_style(name)
     return (
         f'<style>:root {{ --accent: {s["accent"]}; --accent-tint: {s["accent"]}18; }}</style>'
         f'<div style="padding:10px 14px; border-radius:8px; font-weight:600;'
-        f" background:{s['accent']}15; color:{s['accent']};"
+        f" background:{s["accent"]}15; color:{s["accent"]};"
         f' border-left:4px solid {s["accent"]}; display:flex; align-items:center;">'
         f'<span style="font-size:1.3em; margin-right:8px;">{s["emoji"]}</span>{name}</div>'
     )
 
 
-def update_profile(personality, memory_store, session_id):
+def update_profile(personality, session_id):
     """Switch personality: clear chat, update banner and memory display."""
-    p = PERSONALITIES[personality]
-    memory_items = get_personality_memory(memory_store, session_id, personality)
-    return p["system_prompt"], [], [], memory_items, None, personality_html(personality)
+    memory_items = api.get_memory(session_id, personality)
+    return [], [], memory_items, None, personality_html(personality)
 
+def _flatten_content(content):
+    """Extract plain text from Gradio 6.x message content (list of parts or string)."""
+    if isinstance(content, str):
+        return content
+    return "".join(part["text"] for part in content if isinstance(part, dict) and part.get("type") == "text")
+
+
+def chat(message, history, personality, max_tokens, temperature, top_p,
+         session_id, min_recall_importance, min_save_importance, recent_turns, use_local):
+    api_history = [
+        {"role": msg["role"], "content": _flatten_content(msg["content"])}
+        for msg in history
+    ]
+
+    settings = {
+        "max_tokens": int(max_tokens),
+        "temperature": float(temperature),
+        "top_p": float(top_p),
+        "min_recall_importance": int(min_recall_importance),
+        "min_save_importance": int(min_save_importance),
+        "recent_turns": int(recent_turns),
+    }
+
+    try:
+        result = api.send_message(message, api_history, personality, settings, session_id, use_local)
+    except Exception as e:
+        return f"Error: {e}", gr.skip()
+
+    return result["response"], result["memory_items"]
 
 CSS = """
 .chat-col { border-top: 3px solid var(--accent, #2563EB); border-radius: 8px; padding-top: 8px; }
@@ -32,11 +61,10 @@ CSS = """
 """
 
 with gr.Blocks(css=CSS) as demo:
-    memory_store = gr.State({})
-    session_id = gr.State(None)
+    session_id = gr.State(str(uuid.uuid4()))
 
     with gr.Row():
-        settings = SettingsSidebar()
+        settings = SettingsSidebar(PERSONALITIES, DEFAULT_PERSONALITY)
 
         with gr.Column(scale=1, elem_classes=["chat-col"]):
             banner = gr.HTML(value=personality_html(DEFAULT_PERSONALITY))
@@ -44,30 +72,27 @@ with gr.Blocks(css=CSS) as demo:
             memory_display = gr.JSON(value=[], label="Stored memory items", render=False)
 
             chatbot = gr.ChatInterface(
-                respond,
+                chat,
                 additional_inputs=[
                     settings["personality_dd"],
-                    settings["system_prompt"],
                     settings["max_tokens"],
                     settings["temperature"],
                     settings["top_p"],
-                    memory_store,
                     session_id,
-                    settings["local_toggle"],
                     settings["min_recall_importance"],
                     settings["min_save_importance"],
                     settings["recent_turns"],
+                    settings["local_toggle"],
                 ],
-                additional_outputs=[memory_store, session_id, memory_display],
+                additional_outputs=[memory_display],
             )
             with gr.Accordion("Memory", open=True, elem_classes=["memory-accordion"]):
                 memory_display.render()
 
     settings["personality_dd"].change(
         fn=update_profile,
-        inputs=[settings["personality_dd"], memory_store, session_id],
+        inputs=[settings["personality_dd"], session_id],
         outputs=[
-            settings["system_prompt"],
             chatbot.chatbot,
             chatbot.chatbot_state,
             memory_display,

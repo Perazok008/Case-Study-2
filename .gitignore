@@ -1,5 +1,6 @@
 ssh_keys/*
 sources/*
+application 1/*
 
 .vscode/*
 .venv/*
@@ -7,4 +8,5 @@ sources/*
 
 backend/src/__pycache__/*
 frontend/src/__pycache__/*
+frontend/src/components/__pycache__/*
 frontend/src/.gradio/*

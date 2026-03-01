@@ -1,24 +1,72 @@
-# gradio system honestly seems very fragile, it's documentation uses a lot of depreciated elements, has inconsistent types adn formats and seems to be version fragile which is driving me crazy. I added checks a bit of noramlization but I will wiher if I try to cover all edge cases.
 import json
-import re
 import os
+import re
+
 from huggingface_hub import InferenceClient
-from config import API_MODEL, MEMORY_START, MEMORY_END, PERSONALITIES
+
+from config import API_MODEL, LOCAL_MODEL, MEMORY_START, MEMORY_END, PERSONALITIES
 from schemas import ChatRequest, ChatResponse
 from memory_manager import get_personality_memory, save_personality_memory
 
-default_hf_token = os.environ["HF_TOKEN"]
+_HF_TOKEN = os.environ.get("HF_TOKEN", "")
 
-def chat_completion(messages, max_tokens, temperature, top_p, hf_token=default_hf_token):
-    """Send messages to the API and return the response text."""
+_local_pipe = None
 
-    client = InferenceClient(model=API_MODEL, token=hf_token)
+def _get_local_pipe():
+    global _local_pipe
+    if _local_pipe is None:
+        from transformers import pipeline
+        _local_pipe = pipeline("text-generation", model=LOCAL_MODEL)
+    return _local_pipe
+
+
+def _normalize_messages(messages):
+    """Ensure every message content is a plain string (local pipeline requirement)."""
+    normalized = []
+    for msg in messages:
+        content = msg["content"]
+        if isinstance(content, list):
+            content = " ".join(
+                part.get("text", "") if isinstance(part, dict) else str(part)
+                for part in content
+            )
+        normalized.append({"role": msg["role"], "content": str(content)})
+    return normalized
+
+
+def chat_completion(messages, max_tokens, temperature, top_p, use_local=False):
+    """Send messages to either the local model or HF Inference API and return the response text."""
+    if use_local:
+        local_messages = _normalize_messages(messages)
+        outputs = _get_local_pipe()(
+            local_messages,
+            max_new_tokens=max_tokens,
+            do_sample=True,
+            temperature=temperature,
+            top_p=top_p,
+        )
+        content = outputs[0]["generated_text"][-1]["content"]
+        if not content:
+            print("[LOCAL] Empty response, retrying once...")
+            outputs = _get_local_pipe()(
+                local_messages,
+                max_new_tokens=max_tokens,
+                do_sample=True,
+                temperature=temperature,
+                top_p=top_p,
+            )
+            content = outputs[0]["generated_text"][-1]["content"]
+            if not content:
+                print("[LOCAL] Retry also returned empty content")
+        return content or ""
+
+    client = InferenceClient(model=API_MODEL, token=_HF_TOKEN)
     response = client.chat_completion(
         messages,
         max_tokens=max_tokens,
         temperature=temperature,
         top_p=top_p,
-        tool_choice="none", # To avoid tool-call format errors
+        tool_choice="none",
     )
     content = response.choices[0].message.content
     if not content:
@@ -127,12 +175,11 @@ def extract_memory_items(data):
 
 
 def respond(request: ChatRequest) -> ChatResponse:
-    """ Respond to a user message and return the chat text, memory store, user_id, and current memory. """
-
+    """Process a chat request: build context, call the model, persist memory."""
     message = request.message
     history = [m.model_dump() for m in request.history]
     personality = request.personality
-    system_message = PERSONALITIES[request.personality]["system_prompt"]
+    system_message = PERSONALITIES[personality]["system_prompt"]
     max_tokens = request.settings.max_tokens
     temperature = request.settings.temperature
     top_p = request.settings.top_p
@@ -166,12 +213,7 @@ def respond(request: ChatRequest) -> ChatResponse:
     # Append new user message
     messages.append({"role": "user", "content": message})
 
-    # Get and parse model response
-    try:
-        raw = chat_completion(messages, max_tokens, temperature, top_p)
-    except Exception as e:
-        print(f"[ERROR] Model request failed: {e}")
-        return ChatResponse(response="Error: could not get a response from the model.", memory_items=current_memory)
+    raw = chat_completion(messages, max_tokens, temperature, top_p, request.use_local)
 
     chat_text, data = split_response(raw)
     new_items = extract_memory_items(data)
@@ -188,7 +230,8 @@ def respond(request: ChatRequest) -> ChatResponse:
         dropped = len(new_items) - len(saved_items)
         print(f"[MEMORY] Dropped {dropped} item(s) below save threshold (importance < {save_threshold})")
 
-    # Persist new memory items
-    updated_memory = save_personality_memory(user_id, personality, saved_items)
+    # Append new items to existing memory and persist
+    current_memory.extend(saved_items)
+    save_personality_memory(user_id, personality, current_memory)
 
-    return ChatResponse(response=chat_text, memory_items=updated_memory)
+    return ChatResponse(response=chat_text, memory_items=current_memory)

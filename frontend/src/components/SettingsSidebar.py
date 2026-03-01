@@ -1,13 +1,19 @@
 import gradio as gr
 
-def SettingsSidebar():
+def SettingsSidebar(personalities: list[str], default_personality: str="Teacher"):
     """Build the settings sidebar with collapsible sections."""
     with gr.Column(scale=0):
 
+        local_toggle = gr.Checkbox(
+            label="Use local model",
+            value=False,
+            elem_id="local-toggle",
+        )
+
         with gr.Accordion("Personality", open=True):
             personality_dd = gr.Dropdown(
-                choices=PERSONALITY_CHOICES,
-                value="Teacher",
+                choices=personalities,
+                value=default_personality,
                 label="Personality",
                 info="Choose how the assistant behaves.",
                 elem_id="personality-select",
@@ -66,6 +72,7 @@ def SettingsSidebar():
 
     return {
         "personality_dd": personality_dd,
+        "local_toggle": local_toggle,
         "max_tokens": max_tokens,
         "temperature": temperature,
         "top_p": top_p,
