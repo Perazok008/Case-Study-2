@@ -6,7 +6,11 @@ application 1/*
 .venv/*
 .env*
 
-backend/src/__pycache__/*
-frontend/src/__pycache__/*
-frontend/src/components/__pycache__/*
-frontend/src/.gradio/*
+backend/__pycache__/*
+backend/memory.json
+frontend/__pycache__/*
+frontend/components/__pycache__/*
+frontend/.gradio/*
+
+.python-version
+uv.lock
