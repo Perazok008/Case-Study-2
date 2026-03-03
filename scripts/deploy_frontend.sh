@@ -70,11 +70,11 @@ ssh -i "${SECURE_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" \
 
 echo "Starting app frontend."
 
-ssh -t -i "${SECURE_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" \
-  "sudo fuser -k ${FRONTEND_PORT}/tcp 2>/dev/null || true; tmux kill-session -t frontend 2>/dev/null || true; tmux new-session -d -s frontend 'bash ${APP_DIR}/start.sh'" || true
+ssh -i "${SECURE_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" \
+  "sudo fuser -k ${FRONTEND_PORT}/tcp 2>/dev/null || true; cd ${APP_DIR} && nohup bash start.sh > app.log 2>&1 </dev/null &"
 
 echo "Verifying frontend is up..."
-sleep 5
+sleep 10
 ssh -i "${SECURE_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" \
   "curl -sf http://localhost:${FRONTEND_PORT}/ > /dev/null && echo 'Frontend OK'" || \
   echo "WARNING: Frontend health check failed -- check tmux session 'frontend' on the VM."

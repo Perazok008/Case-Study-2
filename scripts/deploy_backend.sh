@@ -76,11 +76,11 @@ ssh -i "${SECURE_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" \
 
 echo "Starting app backend."
 
-ssh -t -i "${SECURE_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" \
-  "pkill -f 'uvicorn' 2>/dev/null || true; tmux kill-session -t backend 2>/dev/null || true; tmux new-session -d -s backend 'bash ${APP_DIR}/start.sh'" || true
+ssh -i "${SECURE_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" \
+  "pkill -f 'uvicorn' 2>/dev/null || true; cd ${APP_DIR} && nohup bash start.sh > app.log 2>&1 </dev/null &"
 
 echo "Verifying backend is up..."
-sleep 5
+sleep 10
 ssh -i "${SECURE_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" \
   "curl -sf http://localhost:${BACKEND_PORT}/health > /dev/null && echo 'Backend OK'" || \
   echo "WARNING: Backend health check failed -- check tmux session 'backend' on the VM."
