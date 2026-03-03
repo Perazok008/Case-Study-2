@@ -76,8 +76,8 @@ ssh -i "${SECURE_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" \
 
 echo "Starting app backend."
 
-ssh -i "${SECURE_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" \
-  "(pkill -f 'uvicorn' || true); (tmux kill-session -t backend 2>/dev/null || true); tmux new-session -d -s backend 'bash ${APP_DIR}/start.sh'"
+ssh -t -i "${SECURE_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" \
+  "pkill -f 'uvicorn' 2>/dev/null || true; tmux kill-session -t backend 2>/dev/null || true; tmux new-session -d -s backend 'bash ${APP_DIR}/start.sh'" || true
 
 echo "Verifying backend is up..."
 sleep 5

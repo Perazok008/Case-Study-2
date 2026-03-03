@@ -70,8 +70,8 @@ ssh -i "${SECURE_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" \
 
 echo "Starting app frontend."
 
-ssh -i "${SECURE_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" \
-  "(sudo fuser -k ${FRONTEND_PORT}/tcp || true); (tmux kill-session -t frontend 2>/dev/null || true); tmux new-session -d -s frontend 'bash ${APP_DIR}/start.sh'"
+ssh -t -i "${SECURE_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" \
+  "sudo fuser -k ${FRONTEND_PORT}/tcp 2>/dev/null || true; tmux kill-session -t frontend 2>/dev/null || true; tmux new-session -d -s frontend 'bash ${APP_DIR}/start.sh'" || true
 
 echo "Verifying frontend is up..."
 sleep 5
