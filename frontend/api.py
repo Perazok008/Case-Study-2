@@ -26,7 +26,7 @@ def send_message(message: str, history: list[dict], personality: str, settings: 
         "settings": settings,
         "session_id": session_id,
         "use_local": use_local,
-    })
+    }, timeout=120)
     if response.status_code != 200:
         raise Exception(f"Failed to send message: {response.status_code} {response.text}")
     return response.json()

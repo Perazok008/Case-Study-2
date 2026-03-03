@@ -1,8 +1,19 @@
 import json
 import os
 import re
+import signal
 
 from huggingface_hub import InferenceClient
+
+LOCAL_TIMEOUT = 90
+
+
+class _InferenceTimeout(Exception):
+    pass
+
+
+def _timeout_handler(signum, frame):
+    raise _InferenceTimeout("Local model inference timed out")
 
 from config import API_MODEL, LOCAL_MODEL, MEMORY_START, MEMORY_END, PERSONALITIES
 from schemas import ChatRequest, ChatResponse
@@ -38,16 +49,9 @@ def chat_completion(messages, max_tokens, temperature, top_p, use_local=False):
     """Send messages to either the local model or HF Inference API and return the response text."""
     if use_local:
         local_messages = _normalize_messages(messages)
-        outputs = _get_local_pipe()(
-            local_messages,
-            max_new_tokens=max_tokens,
-            do_sample=True,
-            temperature=temperature,
-            top_p=top_p,
-        )
-        content = outputs[0]["generated_text"][-1]["content"]
-        if not content:
-            print("[LOCAL] Empty response, retrying once...")
+        prev = signal.signal(signal.SIGALRM, _timeout_handler)
+        signal.alarm(LOCAL_TIMEOUT)
+        try:
             outputs = _get_local_pipe()(
                 local_messages,
                 max_new_tokens=max_tokens,
@@ -57,7 +61,23 @@ def chat_completion(messages, max_tokens, temperature, top_p, use_local=False):
             )
             content = outputs[0]["generated_text"][-1]["content"]
             if not content:
-                print("[LOCAL] Retry also returned empty content")
+                print("[LOCAL] Empty response, retrying once...")
+                outputs = _get_local_pipe()(
+                    local_messages,
+                    max_new_tokens=max_tokens,
+                    do_sample=True,
+                    temperature=temperature,
+                    top_p=top_p,
+                )
+                content = outputs[0]["generated_text"][-1]["content"]
+                if not content:
+                    print("[LOCAL] Retry also returned empty content")
+        except _InferenceTimeout:
+            print("[LOCAL] Inference timed out after {LOCAL_TIMEOUT}s")
+            content = ""
+        finally:
+            signal.alarm(0)
+            signal.signal(signal.SIGALRM, prev)
         return content or ""
 
     client = InferenceClient(model=API_MODEL, token=_HF_TOKEN)
