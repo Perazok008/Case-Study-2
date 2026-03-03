@@ -69,13 +69,15 @@ pip install -r requirements.txt --no-cache-dir"
 
 ########################################################
 
+echo "Writing startup script."
+
+ssh -i "${SECURE_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" \
+  "printf '%s\n' '#!/bin/bash' '. ${APP_DIR}/.env' 'cd ${APP_DIR}' '. .venv/bin/activate' 'exec uvicorn backend:app --host 0.0.0.0 --port ${BACKEND_PORT}' > ${APP_DIR}/start.sh && chmod +x ${APP_DIR}/start.sh"
+
 echo "Starting app backend."
 
 ssh -i "${SECURE_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" \
-"(pkill -f 'uvicorn' || true) && \
-(tmux kill-session -t backend 2>/dev/null || true) && \
-tmux new-session -d -s backend && \
-tmux send-keys -t backend '. ${APP_DIR}/.env && cd ${APP_DIR} && . .venv/bin/activate && uvicorn backend:app --host 0.0.0.0 --port ${BACKEND_PORT}' Enter"
+  "(pkill -f 'uvicorn' || true); (tmux kill-session -t backend 2>/dev/null || true); tmux new-session -d -s backend 'bash ${APP_DIR}/start.sh'"
 
 echo "Verifying backend is up..."
 sleep 5

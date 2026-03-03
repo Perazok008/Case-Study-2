@@ -63,13 +63,15 @@ pip install -r requirements.txt --no-cache-dir"
 
 ########################################################
 
+echo "Writing startup script."
+
+ssh -i "${SECURE_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" \
+  "printf '%s\n' '#!/bin/bash' '. ${APP_DIR}/.env' 'cd ${APP_DIR}' '. .venv/bin/activate' 'exec python app.py' > ${APP_DIR}/start.sh && chmod +x ${APP_DIR}/start.sh"
+
 echo "Starting app frontend."
 
 ssh -i "${SECURE_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" \
-"(sudo fuser -k ${FRONTEND_PORT}/tcp || true) && \
-(tmux kill-session -t frontend 2>/dev/null || true) && \
-tmux new-session -d -s frontend && \
-tmux send-keys -t frontend '. ${APP_DIR}/.env && cd ${APP_DIR} && . .venv/bin/activate && python app.py' Enter"
+  "(sudo fuser -k ${FRONTEND_PORT}/tcp || true); (tmux kill-session -t frontend 2>/dev/null || true); tmux new-session -d -s frontend 'bash ${APP_DIR}/start.sh'"
 
 echo "Verifying frontend is up..."
 sleep 5
