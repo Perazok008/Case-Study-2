@@ -13,12 +13,14 @@ DEFAULT_PERSONALITY = PERSONALITIES[0]
 def personality_html(name):
     """Return banner HTML + a <style> tag that sets the accent CSS variable."""
     s = api.get_personality_style(name)
+    accent = s["accent"]
+    emoji = s["emoji"]
     return (
-        f'<style>:root {{ --accent: {s["accent"]}; --accent-tint: {s["accent"]}18; }}</style>'
+        f"<style>:root {{ --accent: {accent}; --accent-tint: {accent}18; }}</style>"
         f'<div style="padding:10px 14px; border-radius:8px; font-weight:600;'
-        f" background:{s["accent"]}15; color:{s["accent"]};"
-        f' border-left:4px solid {s["accent"]}; display:flex; align-items:center;">'
-        f'<span style="font-size:1.3em; margin-right:8px;">{s["emoji"]}</span>{name}</div>'
+        f" background:{accent}15; color:{accent};"
+        f' border-left:4px solid {accent}; display:flex; align-items:center;">'
+        f'<span style="font-size:1.3em; margin-right:8px;">{emoji}</span>{name}</div>'
     )
 
 

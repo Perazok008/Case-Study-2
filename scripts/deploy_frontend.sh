@@ -68,15 +68,22 @@ echo "Writing startup script."
 ssh -i "${SECURE_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" \
   "printf '%s\n' '#!/bin/bash' '. .env' '. .venv/bin/activate' 'exec python app.py' > ${APP_DIR}/start.sh && chmod +x ${APP_DIR}/start.sh"
 
+echo "Stopping existing frontend."
+
+ssh -i "${SECURE_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" \
+  "sudo fuser -k ${FRONTEND_PORT}/tcp 2>/dev/null; tmux kill-session -t frontend 2>/dev/null; true"
+
+sleep 2
+
 echo "Starting app frontend."
 
 ssh -i "${SECURE_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" \
-  "sudo fuser -k ${FRONTEND_PORT}/tcp 2>/dev/null || true; sleep 1; cd ${APP_DIR} && nohup bash start.sh > app.log 2>&1 </dev/null &" || true
+  "cd ${APP_DIR} && tmux new-session -d -s frontend 'bash start.sh > app.log 2>&1'"
 
 echo "Verifying frontend is up..."
 sleep 10
 ssh -i "${SECURE_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" \
   "curl -sf http://localhost:${FRONTEND_PORT}/ > /dev/null && echo 'Frontend OK'" || \
-  echo "WARNING: Frontend health check failed -- check tmux session 'frontend' on the VM."
+  echo "WARNING: Frontend health check failed -- SSH in and check: tmux a -t frontend  OR  cat ~/app/frontend/app.log"
 
 echo "Done."

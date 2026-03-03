@@ -74,15 +74,22 @@ echo "Writing startup script."
 ssh -i "${SECURE_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" \
   "printf '%s\n' '#!/bin/bash' '. .env' '. .venv/bin/activate' 'exec uvicorn backend:app --host 0.0.0.0 --port ${BACKEND_PORT}' > ${APP_DIR}/start.sh && chmod +x ${APP_DIR}/start.sh"
 
+echo "Stopping existing backend."
+
+ssh -i "${SECURE_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" \
+  "pkill -f '[u]vicorn' 2>/dev/null; tmux kill-session -t backend 2>/dev/null; true"
+
+sleep 2
+
 echo "Starting app backend."
 
 ssh -i "${SECURE_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" \
-  "pkill -f 'uvicorn' 2>/dev/null || true; sleep 1; cd ${APP_DIR} && nohup bash start.sh > app.log 2>&1 </dev/null &" || true
+  "cd ${APP_DIR} && tmux new-session -d -s backend 'bash start.sh > app.log 2>&1'"
 
 echo "Verifying backend is up..."
 sleep 10
 ssh -i "${SECURE_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" \
   "curl -sf http://localhost:${BACKEND_PORT}/health > /dev/null && echo 'Backend OK'" || \
-  echo "WARNING: Backend health check failed -- check tmux session 'backend' on the VM."
+  echo "WARNING: Backend health check failed -- SSH in and check: tmux a -t backend  OR  cat ~/app/backend/app.log"
 
 echo "Done."
