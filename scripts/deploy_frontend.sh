@@ -67,8 +67,9 @@ echo "Starting app frontend."
 
 ssh -i "${SECURE_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" \
 "(sudo fuser -k ${FRONTEND_PORT}/tcp || true) && \
-(tmux kill-session -t frontend || true) && \
-tmux new -d -s frontend 'source ${APP_DIR}/.env && cd ${APP_DIR} && source .venv/bin/activate && python app.py'"
+(tmux kill-session -t frontend 2>/dev/null || true) && \
+tmux new-session -d -s frontend && \
+tmux send-keys -t frontend '. ${APP_DIR}/.env && cd ${APP_DIR} && . .venv/bin/activate && python app.py' Enter"
 
 echo "Verifying frontend is up..."
 sleep 5

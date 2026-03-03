@@ -73,8 +73,9 @@ echo "Starting app backend."
 
 ssh -i "${SECURE_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" \
 "(pkill -f 'uvicorn' || true) && \
-(tmux kill-session -t backend || true) && \
-tmux new -d -s backend 'source ${APP_DIR}/.env && cd ${APP_DIR} && source .venv/bin/activate && uvicorn backend:app --host 0.0.0.0 --port ${BACKEND_PORT}'"
+(tmux kill-session -t backend 2>/dev/null || true) && \
+tmux new-session -d -s backend && \
+tmux send-keys -t backend '. ${APP_DIR}/.env && cd ${APP_DIR} && . .venv/bin/activate && uvicorn backend:app --host 0.0.0.0 --port ${BACKEND_PORT}' Enter"
 
 echo "Verifying backend is up..."
 sleep 5
