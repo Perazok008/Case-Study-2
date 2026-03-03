@@ -1,4 +1,9 @@
 #!/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+
+LOCKFILE="/tmp/cs2_monitor.lock"
+exec 200>"${LOCKFILE}"
+flock -n 200 || { echo "[$(date)] Another monitor instance running, exiting."; exit 0; }
 
 BACKEND_URL="http://paffenroth-23.dyn.wpi.edu:9006/health"
 FRONTEND_URL="http://paffenroth-23.dyn.wpi.edu:7006"
