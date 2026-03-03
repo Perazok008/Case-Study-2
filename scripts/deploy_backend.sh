@@ -8,45 +8,60 @@ echo "Setting up SSH."
 USER="group06"
 PORT="22006"
 SERVER="paffenroth-23.dyn.wpi.edu"
-KEY_PATH="./ssh_keys/secure_key"
-
-LOCAL_DIR="./backend/."
-REMOTE_DIR="./app"
-BACKEND_PORT="9006"
+GROUP_KEY="./ssh_keys/group_key"
+SECURE_KEY="./ssh_keys/secure_key"
+SECURE_PUB="./ssh_keys/secure_key.pub"
 HF_TOKEN_FILE="./ssh_keys/token.txt"
+GITHUB_REPO="https://github.com/Perazok008/Case-Study-2.git"
 
-SSH_BASE=(ssh -i "${KEY_PATH}" -p "${PORT}" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "${USER}@${SERVER}")
-SCP_BASE=(scp -i "${KEY_PATH}" -P "${PORT}" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
+REPO_DIR="./app"
+APP_DIR="${REPO_DIR}/backend"
+BACKEND_PORT="9006"
+
+SSH_OPTS=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
 
 ########################################################
 
-echo "Copying app backend to backend server."
+echo "Setting up SSH keys."
 
-"${SSH_BASE[@]}" "rm -rf ${REMOTE_DIR} && mkdir -p ${REMOTE_DIR}"
-"${SCP_BASE[@]}" -r "${LOCAL_DIR}" "${USER}@${SERVER}:${REMOTE_DIR}"
-"${SCP_BASE[@]}" ./backend/requirements.txt "${USER}@${SERVER}:${REMOTE_DIR}/requirements.txt"
+SECURE_PUB_KEY="$(cat "${SECURE_PUB}")"
+ssh -i "${GROUP_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" \
+  "echo '${SECURE_PUB_KEY}' > ~/.ssh/authorized_keys" || true
+
+echo "Verifying secure key access."
+ssh -i "${SECURE_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" "echo 'SSH OK'" || {
+  echo "ERROR: Cannot connect with secure key."; exit 1;
+}
+
+########################################################
+
+echo "Installing APT packages."
+
+ssh -i "${SECURE_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" \
+"sudo DEBIAN_FRONTEND=noninteractive apt update && \
+sudo DEBIAN_FRONTEND=noninteractive apt install -y tmux python3 python3-venv python3-pip git"
+
+########################################################
+
+echo "Cloning repository."
+
+ssh -i "${SECURE_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" \
+  "rm -rf ${REPO_DIR} && git clone --depth 1 ${GITHUB_REPO} ${REPO_DIR}"
 
 ########################################################
 
 echo "Writing environment file."
 
 HF_TOKEN="$(tr -d '[:space:]' < "${HF_TOKEN_FILE}")"
-"${SSH_BASE[@]}" "printf 'export HF_TOKEN=%s\n' '${HF_TOKEN}' > ${REMOTE_DIR}/.env"
-
-########################################################
-
-echo "Installing APT packages."
-
-"${SSH_BASE[@]}" \
-"sudo DEBIAN_FRONTEND=noninteractive apt update && \
-sudo DEBIAN_FRONTEND=noninteractive apt install -y tmux python3 python3-venv python3-pip"
+ssh -i "${SECURE_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" \
+  "printf 'export HF_TOKEN=%s\n' '${HF_TOKEN}' > ${APP_DIR}/.env"
 
 ########################################################
 
 echo "Creating Python virtual environment."
 
-"${SSH_BASE[@]}" \
-"cd ${REMOTE_DIR} && \
+ssh -i "${SECURE_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" \
+"cd ${APP_DIR} && \
 python3 -m venv .venv && \
 source .venv/bin/activate && \
 pip install --upgrade pip --no-cache-dir && \
@@ -56,9 +71,15 @@ pip install -r requirements.txt --no-cache-dir"
 
 echo "Starting app backend."
 
-"${SSH_BASE[@]}" \
+ssh -i "${SECURE_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" \
 "(pkill -f 'uvicorn' || true) && \
 (tmux kill-session -t backend || true) && \
-tmux new -d -s backend 'source ${REMOTE_DIR}/.env && cd ${REMOTE_DIR} && source .venv/bin/activate && uvicorn backend:app --host 0.0.0.0 --port ${BACKEND_PORT}'"
+tmux new -d -s backend 'source ${APP_DIR}/.env && cd ${APP_DIR} && source .venv/bin/activate && uvicorn backend:app --host 0.0.0.0 --port ${BACKEND_PORT}'"
+
+echo "Verifying backend is up..."
+sleep 5
+ssh -i "${SECURE_KEY}" -p "${PORT}" "${SSH_OPTS[@]}" "${USER}@${SERVER}" \
+  "curl -sf http://localhost:${BACKEND_PORT}/health > /dev/null && echo 'Backend OK'" || \
+  echo "WARNING: Backend health check failed -- check tmux session 'backend' on the VM."
 
 echo "Done."
