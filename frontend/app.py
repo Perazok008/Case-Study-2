@@ -66,7 +66,8 @@ CSS = """
 """
 
 with gr.Blocks(css=CSS) as demo:
-    session_id = gr.State(str(uuid.uuid4()))
+    session_id = gr.State(None)
+    demo.load(fn=lambda: str(uuid.uuid4()), outputs=[session_id])
 
     with gr.Row():
         settings = SettingsSidebar(PERSONALITIES, DEFAULT_PERSONALITY)

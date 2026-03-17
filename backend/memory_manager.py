@@ -13,16 +13,16 @@ def _save(store: dict):
     with open(MEMORY_FILE, "w") as f:
         json.dump(store, f, indent=2)
 
-_store: dict = _load()
-
 def get_personality_memory(user_id: str, personality: str) -> list[dict]:
-    return list(_store.get(user_id, {}).get(personality.lower(), []))
+    return list(_load().get(user_id, {}).get(personality.lower(), []))
 
 def save_personality_memory(user_id: str, personality: str, items: list[dict]):
-    _store.setdefault(user_id, {})[personality.lower()] = items
-    _save(_store)
+    store = _load()
+    store.setdefault(user_id, {})[personality.lower()] = items
+    _save(store)
 
 def delete_personality_memory(user_id: str, personality: str):
-    if user_id in _store and personality.lower() in _store[user_id]:
-        del _store[user_id][personality.lower()]
-        _save(_store)
+    store = _load()
+    if user_id in store and personality.lower() in store[user_id]:
+        del store[user_id][personality.lower()]
+        _save(store)
